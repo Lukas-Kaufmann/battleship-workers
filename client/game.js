@@ -208,7 +208,6 @@ function connect(code) {
   ws = socket;
 
   socket.onopen = () => {
-    console.log("WS open");
     reconnectAttempts = 0;
     isReconnecting = false;
     transition("CONNECTING");
@@ -232,12 +231,10 @@ function connect(code) {
           break;
       }
     } catch (e) {
-      console.error("Message handling error:", e, event.data);
     }
   };
 
   socket.onclose = (event) => {
-    console.log("WS closed:", event.code, event.reason, "state:", state);
     // Ignore close events from stale sockets
     if (socket !== ws) return;
     if (state === "GAME_OVER" || state === "LOBBY") return;
@@ -247,7 +244,6 @@ function connect(code) {
         && (state === "CONNECTING" || state === "WAITING")) {
       reconnectAttempts++;
       isReconnecting = true;
-      console.log("Reconnecting attempt", reconnectAttempts);
       setTimeout(() => connect(roomCode), 500 * reconnectAttempts);
       return;
     }
@@ -256,9 +252,7 @@ function connect(code) {
     transition("DISCONNECTED");
   };
 
-  socket.onerror = (e) => {
-    console.error("WS error:", e);
-  };
+  socket.onerror = () => {};
 }
 
 function handleStateMessage(msg) {
