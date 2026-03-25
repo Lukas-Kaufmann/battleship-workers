@@ -523,13 +523,13 @@ For a fun project with friends, input validation and 6-char codes are sufficient
 
 ### Phase 1: Everything Works End-to-End
 
-- [ ] Init git repo, `gh repo create Lukas-Kaufmann/battleship-workers --public`
-- [ ] `package.json` with `wrangler` dependency
-- [ ] `wrangler.toml` with DO binding and static assets config
-- [ ] `tsconfig.json`
-- [ ] Worker entry point (`src/index.ts`) — route `/api/create` and `/api/room/:code/ws`
-- [ ] Room code generator (`src/room-code.ts`) — 6-char unambiguous codes
-- [ ] `BattleshipRoom` DO (`src/battleship-room.ts`):
+- [x] Init git repo, `gh repo create Lukas-Kaufmann/battleship-workers --public`
+- [x] `package.json` with `wrangler` dependency
+- [x] `wrangler.toml` with DO binding and static assets config
+- [x] `tsconfig.json`
+- [x] Worker entry point (`src/index.ts`) — route `/api/create` and `/api/room/:code/ws`
+- [x] Room code generator (`src/room-code.ts`) — 6-char unambiguous codes
+- [x] `BattleshipRoom` DO (`src/battleship-room.ts`):
   - WebSocket Hibernation API (accept, message, close, error handlers)
   - State machine (waiting → placement → playing → finished)
   - Player connection/assignment via `serializeAttachment`
@@ -539,17 +539,17 @@ For a fun project with friends, input validation and 6-char codes are sufficient
   - Disconnect = forfeit
   - Alarm-based inactivity cleanup
   - State-push broadcast after every mutation
-- [ ] Single-page frontend (`client/index.html` + `client/game.js` + `client/style.css`):
+- [x] Single-page frontend (`client/index.html` + `client/game.js` + `client/style.css`):
   - Lobby: create room / enter code
   - Game board: two 10x10 grids, ship placement, fire interaction
   - Client state machine gating all interactions
   - WebSocket connection + message handling
   - Phase indicators, game over screen, disconnect overlay
-- [ ] Verify with `wrangler dev` locally
+- [x] Verify with `wrangler dev` locally
 
 ### Phase 2: Deploy + Polish
 
-- [ ] `wrangler login` (OAuth — not local API token)
+- [ ] `wrangler login` (OAuth — not local API token) — **requires user interaction**
 - [ ] `wrangler deploy`
 - [ ] End-to-end test in production (two browser tabs)
 - [ ] Fix any bugs found during testing
@@ -574,7 +574,7 @@ For a fun project with friends, input validation and 6-char codes are sufficient
 - [ ] Disconnect results in forfeit for disconnecting player
 - [ ] Inactive rooms are cleaned up within 10 minutes
 - [ ] Entire app deployed via single `wrangler deploy`
-- [ ] Code hosted on `Lukas-Kaufmann/battleship-workers` GitHub repo
+- [x] Code hosted on `Lukas-Kaufmann/battleship-workers` GitHub repo
 
 ## Sources
 

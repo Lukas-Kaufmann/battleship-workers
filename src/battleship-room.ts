@@ -177,10 +177,23 @@ export class BattleshipRoom extends DurableObject {
   }
 
   async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
     let state = await this.loadState();
+
+    // Handle reconnect: close stale socket for the same player
+    const rejoinParam = url.searchParams.get("rejoin");
+    if (rejoinParam !== null) {
+      const rejoinPlayer = parseInt(rejoinParam) as PlayerIndex;
+      for (const [sessionWs, session] of this.sessions) {
+        if (session.player === rejoinPlayer) {
+          try { sessionWs.close(1000, "Replaced by reconnect"); } catch {}
+          this.sessions.delete(sessionWs);
+        }
+      }
+    }
 
     // Reject if room is full
     if (this.sessions.size >= 2) {
@@ -213,7 +226,11 @@ export class BattleshipRoom extends DurableObject {
 
     // Send initial state to all connected players.
     for (const [sessionWs, session] of this.sessions) {
-      this.sendState(sessionWs, state, session.player);
+      try {
+        this.sendState(sessionWs, state, session.player);
+      } catch {
+        this.sessions.delete(sessionWs);
+      }
     }
     return new Response(null, { status: 101, webSocket: client });
   }
