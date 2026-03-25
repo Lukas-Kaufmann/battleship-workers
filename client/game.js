@@ -7,7 +7,7 @@ let myPlayer = null;
 let errorTimeout = null;
 let reconnectAttempts = 0;
 let isReconnecting = false;
-const MAX_RECONNECT_ATTEMPTS = 3;
+const MAX_RECONNECT_ATTEMPTS = 5;
 
 // Placement state
 const SHIPS = [
@@ -204,11 +204,15 @@ function connect(code) {
 
   roomCode = code;
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  const socket = new WebSocket(`${protocol}//${location.host}/api/room/${code}/ws`);
+  let wsUrl = `${protocol}//${location.host}/api/room/${code}/ws`;
+  if (isReconnecting && myPlayer !== null) {
+    wsUrl += `?rejoin=${myPlayer}`;
+  }
+  const socket = new WebSocket(wsUrl);
   ws = socket;
 
   socket.onopen = () => {
-    reconnectAttempts = 0;
+    console.log("[ws] open, state was:", state);
     isReconnecting = false;
     transition("CONNECTING");
   };
@@ -222,6 +226,7 @@ function connect(code) {
           handleStateMessage(msg);
           break;
         case "error":
+          console.warn("[ws] server error:", msg.message);
           showError(msg.message);
           // If we were firing, go back to MY_TURN
           if (state === "FIRING") transition("MY_TURN");
@@ -235,20 +240,21 @@ function connect(code) {
   };
 
   socket.onclose = (event) => {
-    // Ignore close events from stale sockets
+    console.log("[ws] close, code:", event.code, "state:", state, "isCurrentSocket:", socket === ws);
+    // Ignore close events from any socket that isn't the current one
     if (socket !== ws) return;
     if (state === "GAME_OVER" || state === "LOBBY") return;
 
-    // Auto-reconnect on abnormal closure (1006) if game hasn't started
-    if (event.code === 1006 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS
+    // During pre-game phases, reconnect silently
+    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS
         && (state === "CONNECTING" || state === "WAITING")) {
       reconnectAttempts++;
       isReconnecting = true;
-      setTimeout(() => connect(roomCode), 500 * reconnectAttempts);
+      setTimeout(() => connect(roomCode), 1000 * reconnectAttempts);
       return;
     }
 
-    if (isReconnecting) return;
+    isReconnecting = false;
     transition("DISCONNECTED");
   };
 
@@ -261,6 +267,8 @@ function handleStateMessage(msg) {
 
   switch (msg.phase) {
     case "waiting":
+      reconnectAttempts = 0;
+      console.log("[ws] got waiting state, transitioning to WAITING");
       transition("WAITING");
       $waitingCode.textContent = roomCode;
       break;
@@ -326,6 +334,7 @@ function handleFireClick(row, col) {
 // --- State transitions ---
 
 function transition(newState) {
+  console.log("[transition]", state, "→", newState);
   state = newState;
 
   // Hide all views
