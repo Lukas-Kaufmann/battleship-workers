@@ -256,7 +256,6 @@ export class BattleshipRoom extends DurableObject {
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
     const session = this.sessions.get(ws);
     this.sessions.delete(ws);
-    ws.close(code, reason);
 
     if (!session) return;
 
@@ -283,7 +282,6 @@ export class BattleshipRoom extends DurableObject {
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
     const session = this.sessions.get(ws);
     this.sessions.delete(ws);
-    ws.close(1011, "Unexpected error");
 
     if (!session) return;
 
