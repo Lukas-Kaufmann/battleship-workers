@@ -5,6 +5,8 @@ let ws = null;
 let roomCode = null;
 let myPlayer = null;
 let errorTimeout = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 3;
 
 // Placement state
 const SHIPS = [
@@ -195,34 +197,55 @@ function connect(code) {
   ws = new WebSocket(`${protocol}//${location.host}/api/room/${code}/ws`);
 
   ws.onopen = () => {
+    console.log("WS open");
+    reconnectAttempts = 0;
     transition("CONNECTING");
   };
 
   ws.onmessage = (event) => {
-    const msg = JSON.parse(event.data);
+    try {
+      const msg = JSON.parse(event.data);
 
-    switch (msg.type) {
-      case "state":
-        handleStateMessage(msg);
-        break;
-      case "error":
-        showError(msg.message);
-        // If we were firing, go back to MY_TURN
-        if (state === "FIRING") transition("MY_TURN");
-        break;
-      case "opponentDisconnected":
-        showError("Opponent disconnected");
-        break;
+      switch (msg.type) {
+        case "state":
+          handleStateMessage(msg);
+          break;
+        case "error":
+          showError(msg.message);
+          // If we were firing, go back to MY_TURN
+          if (state === "FIRING") transition("MY_TURN");
+          break;
+        case "opponentDisconnected":
+          showError("Opponent disconnected");
+          break;
+      }
+    } catch (e) {
+      console.error("Message handling error:", e, event.data);
     }
   };
 
   ws.onclose = (event) => {
+    console.log("WS closed:", event.code, event.reason, "state:", state);
     if (state === "GAME_OVER" || state === "LOBBY") return;
+
+    // Auto-reconnect on abnormal closure (1006) if game hasn't started
+    if (event.code === 1006 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS
+        && (state === "CONNECTING" || state === "WAITING" || state === "RECONNECTING")) {
+      reconnectAttempts++;
+      console.log("Reconnecting attempt", reconnectAttempts);
+      state = "RECONNECTING";
+      setTimeout(() => connect(roomCode), 500 * reconnectAttempts);
+      return;
+    }
+
+    // Don't show overlay if we're already reconnecting via a newer socket
+    if (state === "RECONNECTING") return;
+
     transition("DISCONNECTED");
   };
 
-  ws.onerror = () => {
-    // onclose will fire after this
+  ws.onerror = (e) => {
+    console.error("WS error:", e);
   };
 }
 

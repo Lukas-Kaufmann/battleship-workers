@@ -171,9 +171,14 @@ export class BattleshipRoom extends DurableObject {
       const data = ws.deserializeAttachment() as { player: PlayerIndex } | null;
       if (data) this.sessions.set(ws, data);
     }
-    this.ctx.setWebSocketAutoResponse(
-      new WebSocketRequestResponsePair("ping", "pong")
-    );
+    try {
+      this.ctx.setWebSocketAutoResponse(
+        new WebSocketRequestResponsePair("ping", "pong")
+      );
+    } catch (e) {
+      console.error("setWebSocketAutoResponse failed:", e);
+    }
+    console.log("DO constructor done, sessions:", this.sessions.size);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -211,9 +216,18 @@ export class BattleshipRoom extends DurableObject {
     await this.saveState(state);
     await this.resetAlarm();
 
-    // Send state to all connected players
-    this.broadcastState(state);
+    console.log("fetch: sending state to", this.sessions.size, "players, phase:", state.phase);
 
+    // Send initial state to all connected players.
+    for (const [sessionWs, session] of this.sessions) {
+      try {
+        this.sendState(sessionWs, state, session.player);
+      } catch (e) {
+        console.error("sendState failed for player", session.player, e);
+      }
+    }
+
+    console.log("fetch: returning 101");
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -254,6 +268,7 @@ export class BattleshipRoom extends DurableObject {
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
+    console.log("webSocketClose:", code, reason, "wasClean:", wasClean);
     const session = this.sessions.get(ws);
     this.sessions.delete(ws);
 
@@ -280,6 +295,7 @@ export class BattleshipRoom extends DurableObject {
   }
 
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
+    console.error("webSocketError:", error);
     const session = this.sessions.get(ws);
     this.sessions.delete(ws);
 
