@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Battleship</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- Lobby -->
+  <div id="lobby">
+    <h1>Battleship</h1>
+    <div class="lobby-actions">
+      <button id="btn-create">Create Room</button>
+      <div class="join-form">
+        <input id="input-code" type="text" maxlength="6" placeholder="Room code" autocapitalize="characters">
+        <button id="btn-join">Join</button>
+      </div>
+    </div>
+    <p id="lobby-error" class="error" hidden></p>
+  </div>
+
+  <!-- Game -->
+  <div id="game" hidden>
+    <div id="status-bar">
+      <span id="phase-text"></span>
+      <span id="room-code-display"></span>
+    </div>
+
+    <!-- Waiting -->
+    <div id="waiting-view" hidden>
+      <p>Waiting for opponent...</p>
+      <p>Share this code: <strong id="waiting-code"></strong></p>
+    </div>
+
+    <!-- Placement -->
+    <div id="placement-view" hidden>
+      <p id="placement-status">Place your ships. Click a cell to start, then click to place.</p>
+      <div id="placement-controls">
+        <span id="current-ship-name"></span>
+        <button id="btn-rotate">Rotate</button>
+        <button id="btn-confirm-ships" disabled>Confirm Placement</button>
+      </div>
+      <div class="board-container">
+        <div>
+          <h3>Your Board</h3>
+          <div id="placement-board" class="grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Playing -->
+    <div id="playing-view" hidden>
+      <p id="turn-text"></p>
+      <div class="board-container two-boards">
+        <div>
+          <h3>Your Board</h3>
+          <div id="my-board" class="grid"></div>
+        </div>
+        <div>
+          <h3>Opponent's Board</h3>
+          <div id="opponent-board" class="grid clickable"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Finished -->
+    <div id="finished-view" hidden>
+      <h2 id="result-text"></h2>
+      <div class="board-container two-boards">
+        <div>
+          <h3>Your Board</h3>
+          <div id="final-my-board" class="grid"></div>
+        </div>
+        <div>
+          <h3>Opponent's Board</h3>
+          <div id="final-opponent-board" class="grid"></div>
+        </div>
+      </div>
+      <button id="btn-new-game">New Game</button>
+    </div>
+
+    <!-- Disconnect overlay -->
+    <div id="disconnect-overlay" hidden>
+      <div class="overlay-content">
+        <h2>Connection Lost</h2>
+        <p>The game has ended.</p>
+        <button id="btn-back-lobby">Back to Lobby</button>
+      </div>
+    </div>
+
+    <!-- Error toast -->
+    <div id="error-toast" hidden></div>
+  </div>
+
+  <script src="/game.js"></script>
+</body>
+</html>

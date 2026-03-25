@@ -1,0 +1,15 @@
+name = "battleship-workers"
+main = "src/index.ts"
+compatibility_date = "2025-12-01"
+
+[assets]
+directory = "./client"
+run_worker_first = ["/api/*"]
+
+[[durable_objects.bindings]]
+name = "GAME_ROOM"
+class_name = "BattleshipRoom"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["BattleshipRoom"]
