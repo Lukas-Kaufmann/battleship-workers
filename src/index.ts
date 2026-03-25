@@ -4,6 +4,7 @@ export { BattleshipRoom } from "./battleship-room";
 
 interface Env {
   GAME_ROOM: DurableObjectNamespace;
+  ASSETS: Fetcher;
 }
 
 export default {
@@ -26,7 +27,7 @@ export default {
       return stub.fetch(request);
     }
 
-    // Static assets handled by the runtime for non-API routes
-    return new Response("Not found", { status: 404 });
+    // Serve static assets for everything else
+    return env.ASSETS.fetch(request);
   },
 } satisfies ExportedHandler<Env>;
