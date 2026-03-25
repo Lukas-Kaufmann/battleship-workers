@@ -6,6 +6,7 @@ let roomCode = null;
 let myPlayer = null;
 let errorTimeout = null;
 let reconnectAttempts = 0;
+let isReconnecting = false;
 const MAX_RECONNECT_ATTEMPTS = 3;
 
 // Placement state
@@ -192,17 +193,28 @@ $btnConfirmShips.addEventListener("click", () => {
 // --- WebSocket ---
 
 function connect(code) {
+  // Clean up any existing connection
+  if (ws) {
+    ws.onclose = null;
+    ws.onerror = null;
+    ws.onmessage = null;
+    ws.close();
+    ws = null;
+  }
+
   roomCode = code;
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  ws = new WebSocket(`${protocol}//${location.host}/api/room/${code}/ws`);
+  const socket = new WebSocket(`${protocol}//${location.host}/api/room/${code}/ws`);
+  ws = socket;
 
-  ws.onopen = () => {
+  socket.onopen = () => {
     console.log("WS open");
     reconnectAttempts = 0;
+    isReconnecting = false;
     transition("CONNECTING");
   };
 
-  ws.onmessage = (event) => {
+  socket.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data);
 
@@ -224,27 +236,27 @@ function connect(code) {
     }
   };
 
-  ws.onclose = (event) => {
+  socket.onclose = (event) => {
     console.log("WS closed:", event.code, event.reason, "state:", state);
+    // Ignore close events from stale sockets
+    if (socket !== ws) return;
     if (state === "GAME_OVER" || state === "LOBBY") return;
 
     // Auto-reconnect on abnormal closure (1006) if game hasn't started
     if (event.code === 1006 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS
-        && (state === "CONNECTING" || state === "WAITING" || state === "RECONNECTING")) {
+        && (state === "CONNECTING" || state === "WAITING")) {
       reconnectAttempts++;
+      isReconnecting = true;
       console.log("Reconnecting attempt", reconnectAttempts);
-      state = "RECONNECTING";
       setTimeout(() => connect(roomCode), 500 * reconnectAttempts);
       return;
     }
 
-    // Don't show overlay if we're already reconnecting via a newer socket
-    if (state === "RECONNECTING") return;
-
+    if (isReconnecting) return;
     transition("DISCONNECTED");
   };
 
-  ws.onerror = (e) => {
+  socket.onerror = (e) => {
     console.error("WS error:", e);
   };
 }
@@ -333,6 +345,7 @@ function transition(newState) {
     case "LOBBY":
       $lobby.hidden = false;
       $game.hidden = true;
+      $btnCreate.disabled = false;
       break;
     case "CONNECTING":
       $lobby.hidden = true;
@@ -388,6 +401,7 @@ function showError(message) {
 
 $btnCreate.addEventListener("click", async () => {
   $lobbyError.hidden = true;
+  $btnCreate.disabled = true;
   try {
     const res = await fetch("/api/create");
     const data = await res.json();
@@ -395,6 +409,7 @@ $btnCreate.addEventListener("click", async () => {
   } catch (err) {
     $lobbyError.textContent = "Failed to create room";
     $lobbyError.hidden = false;
+    $btnCreate.disabled = false;
   }
 });
 
