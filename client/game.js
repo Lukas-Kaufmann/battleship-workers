@@ -81,6 +81,7 @@ function renderBoard(container, board, showShips) {
     const val = board[r][c];
     cell.className = "cell";
     if (val === "ship" && showShips) cell.classList.add("ship");
+    else if (val === "sunk") cell.classList.add("sunk");
     else if (val === "hit") cell.classList.add("hit");
     else if (val === "miss") cell.classList.add("miss");
   });
@@ -325,7 +326,7 @@ function handleFireClick(row, col) {
   if (state !== "MY_TURN") return;
   // Check if already fired (cell has hit or miss class)
   const cell = $opponentBoard.children[row * 10 + col];
-  if (cell.classList.contains("hit") || cell.classList.contains("miss")) return;
+  if (cell.classList.contains("hit") || cell.classList.contains("miss") || cell.classList.contains("sunk")) return;
 
   transition("FIRING");
   ws.send(JSON.stringify({ type: "fire", row, col }));

@@ -5,7 +5,7 @@ import { DurableObject } from "cloudflare:workers";
 type GamePhase = "waiting" | "placement" | "playing" | "finished";
 type PlayerIndex = 0 | 1;
 type ShotResult = "hit" | "miss" | "sunk";
-type CellState = "empty" | "ship" | "hit" | "miss";
+type CellState = "empty" | "ship" | "hit" | "miss" | "sunk";
 type ShipName = "carrier" | "battleship" | "cruiser" | "submarine" | "destroyer";
 
 interface ShipPlacement {
@@ -400,7 +400,7 @@ export class BattleshipRoom extends DurableObject {
     const opponent = (player === 0 ? 1 : 0) as PlayerIndex;
     const cell = state.boards[opponent][row][col];
 
-    if (cell === "hit" || cell === "miss") {
+    if (cell === "hit" || cell === "miss" || cell === "sunk") {
       ws.send(JSON.stringify({ type: "error", message: "Already fired here" }));
       return;
     }
@@ -412,6 +412,11 @@ export class BattleshipRoom extends DurableObject {
       state.boards[opponent][row][col] = "hit";
       sunkShip = findSunkShip(state.boards[opponent], state.ships[opponent]!, row, col);
       result = sunkShip ? "sunk" : "hit";
+      if (sunkShip) {
+        for (const [r, c] of sunkShip.cells) {
+          state.boards[opponent][r][c] = "sunk";
+        }
+      }
     } else {
       state.boards[opponent][row][col] = "miss";
       result = "miss";
