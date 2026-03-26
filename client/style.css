@@ -71,6 +71,19 @@ input {
   align-items: center;
 }
 
+.lobby-divider {
+  color: #666;
+  font-size: 0.85rem;
+  margin: 0.25rem 0;
+}
+
+.finished-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
 .error { color: #ef5350; margin-top: 0.5rem; }
 
 /* Status bar */

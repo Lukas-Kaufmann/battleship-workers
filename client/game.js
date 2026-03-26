@@ -7,6 +7,7 @@ let myPlayer = null;
 let errorTimeout = null;
 let reconnectAttempts = 0;
 let isReconnecting = false;
+let isBotGame = false;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
 // Placement state
@@ -27,6 +28,7 @@ const $lobby = document.getElementById("lobby");
 const $game = document.getElementById("game");
 const $btnCreate = document.getElementById("btn-create");
 const $btnJoin = document.getElementById("btn-join");
+const $btnBot = document.getElementById("btn-bot");
 const $inputCode = document.getElementById("input-code");
 const $lobbyError = document.getElementById("lobby-error");
 const $phaseText = document.getElementById("phase-text");
@@ -52,6 +54,9 @@ const $resultText = document.getElementById("result-text");
 const $finalMyBoard = document.getElementById("final-my-board");
 const $finalOpponentBoard = document.getElementById("final-opponent-board");
 const $btnNewGame = document.getElementById("btn-new-game");
+const $btnPlayAgain = document.getElementById("btn-play-again");
+const $opponentBoardLabel = document.getElementById("opponent-board-label");
+const $finalOpponentBoardLabel = document.getElementById("final-opponent-board-label");
 
 const $disconnectOverlay = document.getElementById("disconnect-overlay");
 const $btnBackLobby = document.getElementById("btn-back-lobby");
@@ -206,9 +211,15 @@ function connect(code) {
   roomCode = code;
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   let wsUrl = `${protocol}//${location.host}/api/room/${code}/ws`;
+  const params = new URLSearchParams();
   if (isReconnecting && myPlayer !== null) {
-    wsUrl += `?rejoin=${myPlayer}`;
+    params.set("rejoin", String(myPlayer));
   }
+  if (isBotGame && !isReconnecting) {
+    params.set("bot", "1");
+  }
+  const qs = params.toString();
+  if (qs) wsUrl += `?${qs}`;
   const socket = new WebSocket(wsUrl);
   ws = socket;
 
@@ -264,7 +275,10 @@ function connect(code) {
 
 function handleStateMessage(msg) {
   myPlayer = msg.player;
-  $roomCodeDisplay.textContent = roomCode;
+  if (msg.isBot) isBotGame = true;
+  $roomCodeDisplay.textContent = isBotGame ? "vs Computer" : roomCode;
+
+  const opponentName = isBotGame ? "Computer" : "Opponent";
 
   switch (msg.phase) {
     case "waiting":
@@ -279,7 +293,11 @@ function handleStateMessage(msg) {
         transition("PLACING");
         initPlacement();
       }
-      if (msg.opponentReady) {
+      if (isBotGame) {
+        $placementStatus.textContent = msg.myShipsPlaced
+          ? "Starting game..."
+          : "Place your ships to begin.";
+      } else if (msg.opponentReady) {
         $placementStatus.textContent = msg.myShipsPlaced
           ? "Waiting for opponent..."
           : "Opponent is ready! Place your ships.";
@@ -287,11 +305,11 @@ function handleStateMessage(msg) {
       break;
 
     case "playing":
-      // Render boards
       createGrid($myBoard, null);
       createGrid($opponentBoard, handleFireClick);
       renderBoard($myBoard, msg.myBoard, true);
       renderBoard($opponentBoard, msg.opponentBoard, false);
+      $opponentBoardLabel.textContent = `${opponentName}'s Board`;
 
       if (msg.currentTurn === myPlayer) {
         transition("MY_TURN");
@@ -299,7 +317,7 @@ function handleStateMessage(msg) {
         $turnText.className = "your-turn";
       } else {
         transition("OPPONENT_TURN");
-        $turnText.textContent = "Opponent's turn...";
+        $turnText.textContent = `${opponentName}'s turn...`;
         $turnText.className = "opponent-turn";
       }
       break;
@@ -308,7 +326,8 @@ function handleStateMessage(msg) {
       createGrid($finalMyBoard, null);
       createGrid($finalOpponentBoard, null);
       renderBoard($finalMyBoard, msg.myBoard, true);
-      renderBoard($finalOpponentBoard, msg.opponentBoard, false);
+      renderBoard($finalOpponentBoard, msg.opponentBoard, isBotGame);
+      $finalOpponentBoardLabel.textContent = `${opponentName}'s Board`;
 
       if (msg.winner === myPlayer) {
         $resultText.textContent = "You Win!";
@@ -317,6 +336,8 @@ function handleStateMessage(msg) {
         $resultText.textContent = "You Lose";
         $resultText.className = "lose";
       }
+
+      $btnPlayAgain.hidden = !isBotGame;
       transition("GAME_OVER");
       break;
   }
@@ -350,6 +371,7 @@ function transition(newState) {
       $lobby.hidden = false;
       $game.hidden = true;
       $btnCreate.disabled = false;
+      $btnBot.disabled = false;
       break;
     case "CONNECTING":
       $lobby.hidden = true;
@@ -403,6 +425,22 @@ function showError(message) {
 
 // --- Lobby actions ---
 
+$btnBot.addEventListener("click", async () => {
+  $lobbyError.hidden = true;
+  $btnBot.disabled = true;
+  try {
+    isBotGame = true;
+    const res = await fetch("/api/create-bot");
+    const data = await res.json();
+    connect(data.code);
+  } catch (err) {
+    $lobbyError.textContent = "Failed to start bot game";
+    $lobbyError.hidden = false;
+    $btnBot.disabled = false;
+    isBotGame = false;
+  }
+});
+
 $btnCreate.addEventListener("click", async () => {
   $lobbyError.hidden = true;
   $btnCreate.disabled = true;
@@ -434,11 +472,28 @@ $inputCode.addEventListener("keydown", (e) => {
 
 // --- Post-game ---
 
+$btnPlayAgain.addEventListener("click", async () => {
+  if (ws) ws.close();
+  ws = null;
+  roomCode = null;
+  myPlayer = null;
+  isBotGame = true;
+  try {
+    const res = await fetch("/api/create-bot");
+    const data = await res.json();
+    connect(data.code);
+  } catch {
+    isBotGame = false;
+    transition("LOBBY");
+  }
+});
+
 $btnNewGame.addEventListener("click", () => {
   if (ws) ws.close();
   ws = null;
   roomCode = null;
   myPlayer = null;
+  isBotGame = false;
   transition("LOBBY");
 });
 
@@ -447,5 +502,6 @@ $btnBackLobby.addEventListener("click", () => {
   ws = null;
   roomCode = null;
   myPlayer = null;
+  isBotGame = false;
   transition("LOBBY");
 });
