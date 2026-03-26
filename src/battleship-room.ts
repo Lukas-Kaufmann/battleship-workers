@@ -70,6 +70,21 @@ function initialState(): GameState {
   };
 }
 
+function getNeighborKeys(r: number, c: number): string[] {
+  const keys: string[] = [];
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nr = r + dr;
+      const nc = c + dc;
+      if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE) {
+        keys.push(`${nr},${nc}`);
+      }
+    }
+  }
+  return keys;
+}
+
 function generateRandomShips(): ShipPlacement[] {
   const shipNames: ShipName[] = ["carrier", "battleship", "cruiser", "submarine", "destroyer"];
   const maxAttempts = 200;
@@ -77,6 +92,7 @@ function generateRandomShips(): ShipPlacement[] {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const placements: ShipPlacement[] = [];
     const occupied = new Set<string>();
+    const forbidden = new Set<string>(); // occupied + adjacent cells
     let success = true;
 
     for (const name of shipNames) {
@@ -89,16 +105,20 @@ function generateRandomShips(): ShipPlacement[] {
         const col = Math.floor(Math.random() * (horizontal ? GRID_SIZE - size + 1 : GRID_SIZE));
 
         const cells: [number, number][] = [];
-        let overlap = false;
+        let blocked = false;
         for (let i = 0; i < size; i++) {
           const r = horizontal ? row : row + i;
           const c = horizontal ? col + i : col;
-          if (occupied.has(`${r},${c}`)) { overlap = true; break; }
+          if (forbidden.has(`${r},${c}`)) { blocked = true; break; }
           cells.push([r, c]);
         }
 
-        if (!overlap) {
-          for (const [r, c] of cells) occupied.add(`${r},${c}`);
+        if (!blocked) {
+          for (const [r, c] of cells) {
+            occupied.add(`${r},${c}`);
+            forbidden.add(`${r},${c}`);
+            for (const key of getNeighborKeys(r, c)) forbidden.add(key);
+          }
           placements.push({ name, cells });
           placed = true;
           break;
@@ -167,6 +187,23 @@ function validateShips(ships: ShipPlacement[]): string | null {
   }
 
   if (seenNames.size !== 5) return "Must include all 5 ship types";
+
+  // Check no two ships are adjacent (including diagonals)
+  const shipCellSets = ships.map(
+    (ship) => new Set(ship.cells.map(([r, c]) => `${r},${c}`))
+  );
+  for (let i = 0; i < ships.length; i++) {
+    for (const [r, c] of ships[i].cells) {
+      for (const key of getNeighborKeys(r, c)) {
+        for (let j = 0; j < ships.length; j++) {
+          if (i !== j && shipCellSets[j].has(key)) {
+            return "Ships cannot be placed next to each other";
+          }
+        }
+      }
+    }
+  }
+
   return null;
 }
 

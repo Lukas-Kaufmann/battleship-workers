@@ -130,9 +130,23 @@ function isValidPlacement(cells) {
   for (const ship of placedShips) {
     for (const [r, c] of ship.cells) occupied.add(`${r},${c}`);
   }
-  return cells.every(
-    ([r, c]) => r >= 0 && r < 10 && c >= 0 && c < 10 && !occupied.has(`${r},${c}`)
-  );
+
+  // Build set of new ship cells for self-neighbor exclusion
+  const newCells = new Set(cells.map(([r, c]) => `${r},${c}`));
+
+  return cells.every(([r, c]) => {
+    if (r < 0 || r >= 10 || c < 0 || c >= 10) return false;
+    if (occupied.has(`${r},${c}`)) return false;
+    // Check all neighbors against existing ships (skip own cells)
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const key = `${r + dr},${c + dc}`;
+        if (occupied.has(key) && !newCells.has(key)) return false;
+      }
+    }
+    return true;
+  });
 }
 
 function handlePlacementClick(row, col) {
