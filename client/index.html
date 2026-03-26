@@ -4,13 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Battleship</title>
-  <link rel="stylesheet" href="/style.css?v=5">
+  <link rel="stylesheet" href="/style.css?v=6">
 </head>
 <body>
   <!-- Lobby -->
   <div id="lobby">
     <h1>Battleship</h1>
     <div class="lobby-actions">
+      <button id="btn-bot">Play vs Computer</button>
+      <div class="lobby-divider">or play with a friend</div>
       <button id="btn-create">Create Room</button>
       <div class="join-form">
         <input id="input-code" type="text" maxlength="6" placeholder="Room code" autocapitalize="characters">
@@ -58,7 +60,7 @@
           <div id="my-board" class="grid"></div>
         </div>
         <div>
-          <h3>Opponent's Board</h3>
+          <h3 id="opponent-board-label">Opponent's Board</h3>
           <div id="opponent-board" class="grid clickable"></div>
         </div>
       </div>
@@ -73,11 +75,14 @@
           <div id="final-my-board" class="grid"></div>
         </div>
         <div>
-          <h3>Opponent's Board</h3>
+          <h3 id="final-opponent-board-label">Opponent's Board</h3>
           <div id="final-opponent-board" class="grid"></div>
         </div>
       </div>
-      <button id="btn-new-game">New Game</button>
+      <div class="finished-actions">
+        <button id="btn-play-again" hidden>Play Again</button>
+        <button id="btn-new-game">New Game</button>
+      </div>
     </div>
 
     <!-- Disconnect overlay -->
@@ -93,6 +98,6 @@
     <div id="error-toast" hidden></div>
   </div>
 
-  <script src="/game.js?v=5"></script>
+  <script src="/game.js?v=6"></script>
 </body>
 </html>

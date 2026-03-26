@@ -71,6 +71,19 @@ input {
   align-items: center;
 }
 
+.lobby-divider {
+  color: #666;
+  font-size: 0.85rem;
+  margin: 0.25rem 0;
+}
+
+.finished-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
 .error { color: #ef5350; margin-top: 0.5rem; }
 
 /* Status bar */
@@ -131,9 +144,10 @@ input {
 .cell.hit::after { content: "\2716"; color: white; }
 .cell.miss { background: #1a237e; }
 .cell.miss::after { content: "\2022"; color: #5c6bc0; font-size: 1.2rem; }
-.cell.sunk { background: #b71c1c; }
+.cell.sunk { background: #b71c1c; border: 1px solid #ff5252; }
+.cell.sunk::after { content: "\2716"; color: #ff8a80; font-size: 1.2em; }
 
-.grid.clickable .cell:hover:not(.hit):not(.miss) {
+.grid.clickable .cell:hover:not(.hit):not(.miss):not(.sunk) {
   background: #1a3a5c;
   cursor: crosshair;
 }
