@@ -27,6 +27,8 @@ interface GameState {
   currentTurn: PlayerIndex;
   winner: PlayerIndex | null;
   lastShot: LastShot | null;
+  isBot: boolean;
+  botTargets: [number, number][];
 }
 
 interface ClientMessage {
@@ -63,7 +65,54 @@ function initialState(): GameState {
     currentTurn: 0,
     winner: null,
     lastShot: null,
+    isBot: false,
+    botTargets: [],
   };
+}
+
+function generateRandomShips(): ShipPlacement[] {
+  const shipNames: ShipName[] = ["carrier", "battleship", "cruiser", "submarine", "destroyer"];
+  const maxAttempts = 200;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const placements: ShipPlacement[] = [];
+    const occupied = new Set<string>();
+    let success = true;
+
+    for (const name of shipNames) {
+      const size = SHIP_SIZES[name];
+      let placed = false;
+
+      for (let tries = 0; tries < 100; tries++) {
+        const horizontal = Math.random() < 0.5;
+        const row = Math.floor(Math.random() * (horizontal ? GRID_SIZE : GRID_SIZE - size + 1));
+        const col = Math.floor(Math.random() * (horizontal ? GRID_SIZE - size + 1 : GRID_SIZE));
+
+        const cells: [number, number][] = [];
+        let overlap = false;
+        for (let i = 0; i < size; i++) {
+          const r = horizontal ? row : row + i;
+          const c = horizontal ? col + i : col;
+          if (occupied.has(`${r},${c}`)) { overlap = true; break; }
+          cells.push([r, c]);
+        }
+
+        if (!overlap) {
+          for (const [r, c] of cells) occupied.add(`${r},${c}`);
+          placements.push({ name, cells });
+          placed = true;
+          break;
+        }
+      }
+
+      if (!placed) { success = false; break; }
+    }
+
+    if (success) return placements;
+  }
+
+  // Fallback: should never reach here with 200 attempts
+  throw new Error("Failed to generate random ship placement");
 }
 
 function validateShips(ships: ShipPlacement[]): string | null {
@@ -195,14 +244,16 @@ export class BattleshipRoom extends DurableObject {
       }
     }
 
-    // Reject if room is full
-    if (this.sessions.size >= 2) {
-      // Accept then immediately send error and close
+    // Reject if room is full (bot games only allow 1 connection)
+    const maxPlayers = (state?.isBot) ? 1 : 2;
+    if (this.sessions.size >= maxPlayers) {
       this.ctx.acceptWebSocket(server);
       server.send(JSON.stringify({ type: "error", message: "Room full" }));
       server.close(1008, "Room full");
       return new Response(null, { status: 101, webSocket: client });
     }
+
+    const isBotParam = url.searchParams.get("bot") === "1";
 
     // If room is finished or doesn't exist, reset for a new game
     if (!state || state.phase === "finished") {
@@ -214,8 +265,14 @@ export class BattleshipRoom extends DurableObject {
     server.serializeAttachment({ player: playerIndex });
     this.sessions.set(server, { player: playerIndex });
 
-    // Transition phases
-    if (playerIndex === 0) {
+    // Bot game setup: pre-place bot ships, skip waiting phase
+    if (isBotParam && playerIndex === 0) {
+      state.isBot = true;
+      state.phase = "placement";
+      const botShips = generateRandomShips();
+      state.ships[1] = botShips;
+      placeShipsOnBoard(state.boards[1], botShips);
+    } else if (playerIndex === 0) {
       state.phase = "waiting";
     } else if (playerIndex === 1 && state.phase === "waiting") {
       state.phase = "placement";
@@ -280,6 +337,9 @@ export class BattleshipRoom extends DurableObject {
     const state = await this.loadState();
     if (!state) return;
 
+    // Bot games don't forfeit — human can reconnect
+    if (state.isBot) return;
+
     // If game is active, opponent wins by forfeit
     if (state.phase === "playing" || state.phase === "placement") {
       const opponent = (session.player === 0 ? 1 : 0) as PlayerIndex;
@@ -305,6 +365,9 @@ export class BattleshipRoom extends DurableObject {
 
     const state = await this.loadState();
     if (!state) return;
+
+    // Bot games don't forfeit
+    if (state.isBot) return;
 
     if (state.phase === "playing" || state.phase === "placement") {
       const opponent = (session.player === 0 ? 1 : 0) as PlayerIndex;
@@ -434,6 +497,99 @@ export class BattleshipRoom extends DurableObject {
 
     await this.saveState(state);
     this.broadcastState(state);
+
+    // Bot turn: if it's the bot's turn and game isn't over, fire back after a delay
+    if (state.isBot && state.phase === "playing" && state.currentTurn === 1) {
+      await this.executeBotTurn(state);
+    }
+  }
+
+  private async executeBotTurn(state: GameState): Promise<void> {
+    await new Promise((r) => setTimeout(r, 1000));
+
+    const target = this.pickBotTarget(state);
+    if (!target) return;
+    const [row, col] = target;
+
+    const cell = state.boards[0][row][col];
+    let sunkShip: { name: ShipName; cells: [number, number][] } | undefined;
+    let result: ShotResult;
+
+    if (cell === "ship") {
+      state.boards[0][row][col] = "hit";
+      sunkShip = findSunkShip(state.boards[0], state.ships[0]!, row, col);
+      result = sunkShip ? "sunk" : "hit";
+      if (sunkShip) {
+        for (const [r, c] of sunkShip.cells) {
+          state.boards[0][r][c] = "sunk";
+        }
+        // Remove hunt targets belonging to the sunk ship
+        const sunkSet = new Set(sunkShip.cells.map(([r, c]) => `${r},${c}`));
+        state.botTargets = state.botTargets.filter(([r, c]) => !sunkSet.has(`${r},${c}`));
+      } else {
+        // Add adjacent cells to hunt queue
+        const directions: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        for (const [dr, dc] of directions) {
+          const nr = row + dr;
+          const nc = col + dc;
+          if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE) {
+            const adj = state.boards[0][nr][nc];
+            if (adj !== "hit" && adj !== "miss" && adj !== "sunk") {
+              if (!state.botTargets.some(([r, c]) => r === nr && c === nc)) {
+                state.botTargets.push([nr, nc]);
+              }
+            }
+          }
+        }
+      }
+    } else {
+      state.boards[0][row][col] = "miss";
+      result = "miss";
+    }
+
+    state.lastShot = { row, col, result, sunkShip };
+
+    if (checkAllSunk(state.boards[0])) {
+      state.phase = "finished";
+      state.winner = 1;
+    } else {
+      state.currentTurn = 0;
+    }
+
+    await this.saveState(state);
+    await this.resetAlarm();
+    this.broadcastState(state);
+  }
+
+  private pickBotTarget(state: GameState): [number, number] | null {
+    const board = state.boards[0];
+
+    // Hunt mode: try queued targets
+    while (state.botTargets.length > 0) {
+      const target = state.botTargets.shift()!;
+      const [r, c] = target;
+      const cell = board[r][c];
+      if (cell !== "hit" && cell !== "miss" && cell !== "sunk") {
+        return target;
+      }
+    }
+
+    // Random mode: pick an unfired cell with checkerboard bias
+    const candidates: [number, number][] = [];
+    const fallback: [number, number][] = [];
+    for (let r = 0; r < GRID_SIZE; r++) {
+      for (let c = 0; c < GRID_SIZE; c++) {
+        const cell = board[r][c];
+        if (cell !== "hit" && cell !== "miss" && cell !== "sunk") {
+          if ((r + c) % 2 === 0) candidates.push([r, c]);
+          else fallback.push([r, c]);
+        }
+      }
+    }
+
+    const pool = candidates.length > 0 ? candidates : fallback;
+    if (pool.length === 0) return null;
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   private broadcastState(state: GameState): void {
@@ -444,17 +600,22 @@ export class BattleshipRoom extends DurableObject {
 
   private sendState(ws: WebSocket, state: GameState, player: PlayerIndex): void {
     const opponent = (player === 0 ? 1 : 0) as PlayerIndex;
+    // In bot games, reveal bot's full board when game is finished
+    const opponentBoard = (state.isBot && state.phase === "finished")
+      ? state.boards[opponent]
+      : filterBoardForOpponent(state.boards[opponent]);
     const msg = {
       type: "state" as const,
       phase: state.phase,
       player,
       currentTurn: state.currentTurn,
       myBoard: state.boards[player],
-      opponentBoard: filterBoardForOpponent(state.boards[opponent]),
+      opponentBoard,
       myShipsPlaced: state.ships[player] !== null,
       opponentReady: state.ships[opponent] !== null,
       winner: state.winner,
       lastShot: state.lastShot,
+      isBot: state.isBot,
     };
     ws.send(JSON.stringify(msg));
   }

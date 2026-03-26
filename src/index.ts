@@ -11,7 +11,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    if (url.pathname === "/api/create") {
+    if (url.pathname === "/api/create" || url.pathname === "/api/create-bot") {
       const code = generateRoomCode();
       return Response.json({ code });
     }
