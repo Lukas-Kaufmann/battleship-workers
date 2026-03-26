@@ -192,7 +192,7 @@ $btnConfirmShips.addEventListener("click", () => {
   if (placedShips.length !== 5) return;
   state = "PLACEMENT_SUBMITTED";
   $btnConfirmShips.disabled = true;
-  $placementStatus.textContent = "Waiting for opponent...";
+  $placementStatus.textContent = isBotGame ? "Starting game..." : "Waiting for opponent...";
   ws.send(JSON.stringify({ type: "placeShips", ships: placedShips }));
 });
 
@@ -387,7 +387,7 @@ function transition(newState) {
       $placementView.hidden = false;
       break;
     case "PLACEMENT_SUBMITTED":
-      $phaseText.textContent = "Ships placed — waiting for opponent";
+      $phaseText.textContent = isBotGame ? "Starting game..." : "Ships placed — waiting for opponent";
       $placementView.hidden = false;
       break;
     case "MY_TURN":
@@ -399,7 +399,7 @@ function transition(newState) {
       $playingView.hidden = false;
       break;
     case "OPPONENT_TURN":
-      $phaseText.textContent = "Opponent's turn";
+      $phaseText.textContent = isBotGame ? "Computer's turn" : "Opponent's turn";
       $playingView.hidden = false;
       break;
     case "GAME_OVER":
